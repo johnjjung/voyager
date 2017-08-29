@@ -2,10 +2,10 @@ package haproxy
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 	"text/template"
 
-	"github.com/appscode/log"
 	"github.com/appscode/voyager/api"
 	"github.com/stretchr/testify/assert"
 )
@@ -105,13 +105,14 @@ func TestTemplate(t *testing.T) {
 						},
 					},
 					{
+						Host: "test.appscode.dev",
 						Path: "/rebeka",
 						Backend: Backend{
 							Name:         "rebecka",
 							RewriteRules: []string{"first rule", "second rule"},
 							Endpoints: []*Endpoint{
 								{Name: "first", IP: "10.244.2.1", Port: "2323"},
-								{Name: "first", IP: "10.244.2.2", Port: "2324", ExternalName: "name", DNSResolver: "one", UseDNSResolver: true, CheckHealth: true},
+								{Name: "first", IP: "10.244.2.2", Port: "2324", ExternalName: "name", DNSResolver: "one", UseDNSResolver: true, CheckHealth: true, TLSOption: "ssl verify required"},
 							},
 						},
 					},
@@ -133,6 +134,64 @@ func TestTemplate(t *testing.T) {
 							Endpoints: []*Endpoint{
 								{Name: "first", IP: "10.244.2.1", Port: "2323", UseDNSResolver: true},
 								{Name: "first", IP: "10.244.2.2", Port: "2324"},
+							},
+						},
+					},
+				},
+			},
+			{
+				SharedInfo:   &SharedInfo{Sticky: true},
+				FrontendName: "three",
+				Port:         9334,
+				UsesSSL:      true,
+				Paths: []*HTTPPath{
+					{
+						Path: "/kool",
+						Backend: Backend{
+							Name:         "kool",
+							BackendRules: []string{"first rule", "second rule"},
+							RewriteRules: []string{"first rule", "second rule"},
+							HeaderRules:  []string{"firstName value", "secondName value"},
+							Endpoints: []*Endpoint{
+								{Name: "first", IP: "10.244.2.1", Port: "2323", UseDNSResolver: true, TLSOption: "ssl verify required"},
+								{Name: "first", IP: "10.244.2.2", Port: "2324", TLSOption: "ssl verify none"},
+							},
+						},
+					},
+				},
+			},
+			{
+				SharedInfo:   &SharedInfo{Sticky: true},
+				FrontendName: "four",
+				Port:         8334,
+				NodePort:     32000,
+				UsesSSL:      true,
+				Paths: []*HTTPPath{
+					{
+						Host: "ex.appscode.dev",
+						Path: "/yara",
+						Backend: Backend{
+							Name: "yara",
+							Endpoints: []*Endpoint{
+								{Name: "first", IP: "10.244.2.1", Port: "2323", UseDNSResolver: true, TLSOption: "ssl verify required"},
+							},
+						},
+					},
+				},
+			},
+			{
+				SharedInfo:   &SharedInfo{Sticky: true},
+				FrontendName: "five",
+				Port:         80,
+				UsesSSL:      true,
+				Paths: []*HTTPPath{
+					{
+						Host: "ex.appscode.dev",
+						Path: "/yara",
+						Backend: Backend{
+							Name: "yara",
+							Endpoints: []*Endpoint{
+								{Name: "first", IP: "10.244.2.1", Port: "2323", UseDNSResolver: true, TLSOption: "ssl verify required"},
 							},
 						},
 					},
@@ -196,9 +255,25 @@ func TestTemplate(t *testing.T) {
 					},
 				},
 			},
+			{
+				SharedInfo:   si,
+				FrontendName: "rick-castle",
+				ALPNOptions:  "alpn h2options",
+				Host:         "hello.ok.domain",
+				Port:         "4445",
+				Backend: Backend{
+					Name: "kate-becket",
+					Endpoints: []*Endpoint{
+						{Name: "first", IP: "10.244.2.1", Port: "2323", UseDNSResolver: true, TLSOption: "ssl verify none"},
+						{Name: "first", IP: "10.244.2.2", Port: "2324", ExternalName: "ext-name", TLSOption: "ssl verify required"},
+					},
+				},
+			},
 		},
 	}
 	config, err := RenderConfig(testParsedConfig)
 	assert.Nil(t, err)
-	log.Debugln(config)
+	if testing.Verbose() {
+		fmt.Println(err, "\n", config)
+	}
 }

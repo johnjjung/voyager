@@ -29,7 +29,7 @@ var (
 	masterURL      string
 	kubeconfigPath string
 	opt            config.Options = config.Options{
-		HAProxyImage:      "appscode/haproxy:1.7.6-3.1.0",
+		HAProxyImage:      "appscode/haproxy:1.7.6-3.2.0-rc.0",
 		OperatorNamespace: namespace(),
 		OperatorService:   "voyager-operator",
 		HTTPChallengePort: 56791,
@@ -113,7 +113,7 @@ func run() {
 
 	log.Infoln("Starting Voyager operator...")
 
-	w := operator.New(kubeClient, extClient, promClient, opt)
+	w := operator.New(config, kubeClient, extClient, promClient, opt)
 	err = w.Setup()
 	if err != nil {
 		log.Fatalln(err)

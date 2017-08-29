@@ -5,6 +5,10 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	stringz "github.com/appscode/go/strings"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiv1 "k8s.io/client-go/pkg/api/v1"
 )
 
 const (
@@ -111,6 +115,42 @@ const (
 	//   no option clitcpka
 	//
 	DefaultsOption = EngressKey + "/" + "default-option"
+
+	// Available Options
+	//   ssl:
+	//    Creates a TLS/SSL socket when connecting to this server in order to cipher/decipher the traffic
+	//
+	//    if verify not set the following error may occurred
+	//    [/etc/haproxy/haproxy.cfg:49] verify is enabled by default but no CA file specified.
+	//    If you're running on a LAN where you're certain to trust the server's certificate,
+	//    please set an explicit 'verify none' statement on the 'server' line, or use
+	//    'ssl-server-verify none' in the global section to disable server-side verifications by default.
+	//
+	//   verify [none|required]:
+	//    Sets HAProxy‘s behavior regarding the certificated presented by the server:
+	//   none :
+	//    doesn’t verify the certificate of the server
+	//
+	//   required (default value) :
+	//    TLS handshake is aborted if the validation of the certificate presented by the server returns an error.
+	//
+	//   veryfyhost <hostname>:
+	//    Sets a <hostname> to look for in the Subject and SubjectAlternateNames fields provided in the
+	//    certificate sent by the server. If <hostname> can’t be found, then the TLS handshake is aborted.
+	// ie.
+	// ingress.appscode.com/backend-tls: "ssl verify none"
+	//
+	// If this annotation is not set HAProxy will connect to backend as http,
+	// This value should not be set if the backend do not support https resolution.
+	BackendTLSOptions = EngressKey + "/backend-tls"
+
+	certificateAnnotationKeyEnabled                      = "certificate.appscode.com/enabled"
+	certificateAnnotationKeyName                         = "certificate.appscode.com/name"
+	certificateAnnotationKeyProvider                     = "certificate.appscode.com/provider"
+	certificateAnnotationKeyEmail                        = "certificate.appscode.com/email"
+	certificateAnnotationKeyProviderCredentialSecretName = "certificate.appscode.com/provider-secret"
+	certificateAnnotationKeyACMEUserSecretName           = "certificate.appscode.com/user-secret"
+	certificateAnnotationKeyACMEServerURL                = "certificate.appscode.com/server-url"
 )
 
 func (r Ingress) OffshootName() string {
@@ -305,6 +345,58 @@ func (r Ingress) HAProxyOptions() map[string]bool {
 	}
 
 	return ret
+}
+
+func (r Ingress) CertificateSpec() (*Certificate, bool) {
+	if r.Annotations == nil {
+		return nil, false
+	}
+	if val, ok := r.Annotations[certificateAnnotationKeyEnabled]; ok && val == "true" {
+		certificateName := r.Annotations[certificateAnnotationKeyName]
+		// Check if a certificate already exists.
+		newCertificate := &Certificate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      certificateName,
+				Namespace: r.Namespace,
+			},
+			Spec: CertificateSpec{
+				Provider: r.Annotations[certificateAnnotationKeyProvider],
+				Email:    r.Annotations[certificateAnnotationKeyEmail],
+				ProviderCredentialSecretName: r.Annotations[certificateAnnotationKeyProviderCredentialSecretName],
+				HTTPProviderIngressReference: apiv1.ObjectReference{
+					Kind:            "Ingress",
+					Name:            r.Name,
+					Namespace:       r.Namespace,
+					ResourceVersion: r.ResourceVersion,
+					UID:             r.UID,
+				},
+				ACMEUserSecretName: r.Annotations[certificateAnnotationKeyACMEUserSecretName],
+				ACMEServerURL:      r.Annotations[certificateAnnotationKeyACMEServerURL],
+			},
+		}
+
+		if v, ok := r.Annotations[APISchema]; ok {
+			if v == APISchemaIngress {
+				newCertificate.Spec.HTTPProviderIngressReference.APIVersion = APISchemaIngress
+			} else {
+				newCertificate.Spec.HTTPProviderIngressReference.APIVersion = APISchemaEngress
+			}
+		}
+
+		for _, rule := range r.Spec.Rules {
+			found := false
+			for _, tls := range r.Spec.TLS {
+				if stringz.Contains(tls.Hosts, rule.Host) {
+					found = true
+				}
+			}
+			if !found {
+				newCertificate.Spec.Domains = append(newCertificate.Spec.Domains, rule.Host)
+			}
+		}
+		return newCertificate, true
+	}
+	return nil, false
 }
 
 // ref: https://github.com/kubernetes/kubernetes/blob/078238a461a0872a8eacb887fbb3d0085714604c/staging/src/k8s.io/apiserver/pkg/apis/example/v1/types.go#L134

@@ -36,6 +36,7 @@ type HTTPService struct {
 
 	FrontendName string
 	Port         int
+	NodePort     int32
 	UsesSSL      bool
 	Paths        []*HTTPPath
 }
@@ -97,4 +98,6 @@ type Endpoint struct {
 	UseDNSResolver bool
 	DNSResolver    string
 	CheckHealth    bool
+
+	TLSOption string
 }

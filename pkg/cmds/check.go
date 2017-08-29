@@ -40,6 +40,12 @@ func NewCmdCheck() *cobra.Command {
 					return err
 				}
 				fmt.Println("No validation error was found.")
+
+				bi, err := yaml.Marshal(ing)
+				if err != nil {
+					return err
+				}
+				fmt.Println(string(bi))
 				return nil
 			}
 
@@ -62,7 +68,7 @@ func NewCmdCheck() *cobra.Command {
 				return err
 			}
 
-			w := operator.New(kubeClient, extClient, promClient, opt)
+			w := operator.New(config, kubeClient, extClient, promClient, opt)
 			// https://github.com/appscode/voyager/issues/346
 			err = w.ValidateIngress()
 			if err != nil {
